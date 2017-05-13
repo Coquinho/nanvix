@@ -1,5 +1,5 @@
-# 
-# Copyright(C) 2011-2016 Pedro H. Penna <pedrohenriquepenna@gmail.com> 
+#
+# Copyright(C) 2011-2016 Pedro H. Penna <pedrohenriquepenna@gmail.com>
 #
 # This file is part of Nanvix.
 #
@@ -71,6 +71,7 @@ nanvix:
 image: $(BINDIR)/kernel tools
 	mkdir -p $(BINDIR)
 	bash $(TOOLSDIR)/build/build-img.sh $(EDUCATIONAL_KERNEL)
+	$(MAKE) run
 
 # Builds documentation.
 documentation:
@@ -88,3 +89,7 @@ clean:
 	@rm -rf $(DOCDIR)/*-kernel
 	cd $(SRCDIR) && $(MAKE) clean
 	cd $(TOOLSDIR) && $(MAKE) clean
+
+# Run Nanvix.
+run:
+	bash $(TOOLSDIR)/run/run.sh
