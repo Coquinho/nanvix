@@ -24,15 +24,19 @@
 #include <nanvix/pm.h>
 #include <signal.h>
 
+#include "../../lib/libc/stdlib/rand.c"
+#include "../../lib/libc/stdlib/srand.c"
+#include <nanvix/klib.h>
+
 /**
  * @brief Schedules a process to execution.
- * 
+ *
  * @param proc Process to be scheduled.
  */
 PUBLIC void sched(struct process *proc)
 {
-	proc->state = PROC_READY;
-	proc->counter = 0;
+    proc->state = PROC_READY;
+    proc->counter = 0;
 }
 
 /**
@@ -40,23 +44,23 @@ PUBLIC void sched(struct process *proc)
  */
 PUBLIC void stop(void)
 {
-	curr_proc->state = PROC_STOPPED;
-	sndsig(curr_proc->father, SIGCHLD);
-	yield();
+    curr_proc->state = PROC_STOPPED;
+    sndsig(curr_proc->father, SIGCHLD);
+    yield();
 }
 
 /**
  * @brief Resumes a process.
- * 
+ *
  * @param proc Process to be resumed.
- * 
+ *
  * @note The process must stopped to be resumed.
  */
 PUBLIC void resume(struct process *proc)
-{	
-	/* Resume only if process has stopped. */
-	if (proc->state == PROC_STOPPED)
-		sched(proc);
+{
+    /* Resume only if process has stopped. */
+    if (proc->state == PROC_STOPPED)
+        sched(proc);
 }
 
 /**
@@ -64,57 +68,67 @@ PUBLIC void resume(struct process *proc)
  */
 PUBLIC void yield(void)
 {
-	struct process *p;    /* Working process.     */
-	struct process *next; /* Next process to run. */
+    struct process *next; /* Next process to run. */
 
-	/* Re-schedule process for execution. */
-	if (curr_proc->state == PROC_RUNNING)
-		sched(curr_proc);
+    /* Number of tickets until now. */
+    int ntickets = 0;
 
-	/* Remember this process. */
-	last_proc = curr_proc;
+    srand(123123);
 
-	/* Check alarm. */
-	for (p = FIRST_PROC; p <= LAST_PROC; p++)
-	{
-		/* Skip invalid processes. */
-		if (!IS_VALID(p))
-			continue;
-		
-		/* Alarm has expired. */
-		if ((p->alarm) && (p->alarm < ticks))
-			p->alarm = 0, sndsig(p, SIGALRM);
-	}
+    /* Re-schedule process for execution. */
+    if (curr_proc->state == PROC_RUNNING)
+        sched(curr_proc);
 
-	/* Choose a process to run next. */
-	next = IDLE;
-	for (p = FIRST_PROC; p <= LAST_PROC; p++)
-	{
-		/* Skip non-ready process. */
-		if (p->state != PROC_READY)
-			continue;
-		
-		/*
-		 * Process with higher
-		 * waiting time found.
-		 */
-		if (p->counter > next->counter)
-		{
-			next->counter++;
-			next = p;
-		}
-			
-		/*
-		 * Increment waiting
-		 * time of process.
-		 */
-		else
-			p->counter++;
-	}
-	
-	/* Switch to next process. */
-	next->priority = PRIO_USER;
-	next->state = PROC_RUNNING;
-	next->counter = PROC_QUANTUM;
-	switch_to(next);
+    /* Remember this process. */
+    last_proc = curr_proc;
+
+    /* Check alarm.  */
+    for (next = FIRST_PROC; next <= LAST_PROC; next++)
+    {
+        /* Skip invalid processes. */
+        if (!IS_VALID(next))
+            continue;
+
+        /* Alarm has expired. */
+        if ((next->alarm) && (next->alarm < ticks))
+            next->alarm = 0, sndsig(next, SIGALRM);
+    }
+
+    /* Give and count total number of tickets */
+    for (next = FIRST_PROC; next <= LAST_PROC; next++)
+        /* Give tickets to ready process. */
+        if (next->state == PROC_READY) {
+            /* Number of tickets based on priority an nice level. */
+            next->counter = (2^(next->priority < 0 ? (-1)*(next->priority) + 40 : next->priority))-(2^next->nice);
+            /* Count total number of tickets */
+            ntickets += next->counter;
+        }
+
+    /* Sort a ticket.*/
+    int ticket = rand() % ntickets;
+
+    /* Choose a process to run next. */
+
+    int ticket_counter = 0;
+
+    for (next = IDLE; next <= LAST_PROC; next++)
+    {
+        /* Skip non-ready process. */
+        if (next->state != PROC_READY)
+            continue;
+
+        /* limit of tickets to evaluated now */
+        ticket_counter += next->counter;
+
+        /* Select the process that has The ticket. */
+        if(ticket < ticket_counter)
+            break;
+
+    }
+
+    /* Switch to next process. */
+    next->priority = PRIO_USER;
+    next->state = PROC_RUNNING;
+    next->counter = PROC_QUANTUM;
+    switch_to(next);
 }
