@@ -82,12 +82,12 @@ PUBLIC void yield(void)
     int ntickets = 0;
 
     /* Check alarm. */
-    for (p = IDLE; p <= LAST_PROC; p++)
+    for (p = FIRST_PROC; p <= LAST_PROC; p++)
     {
 
         /*  Give tickets to ready process and count total number of tickets. */
         if (p->state == PROC_READY) {
-            p->counter = (-1)*p->priority - p->nice;
+            p->counter = (-1)*p->priority - p->nice + 40;
             ntickets += p->counter;
         }
 
