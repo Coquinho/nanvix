@@ -24,10 +24,10 @@
 #include <nanvix/pm.h>
 #include <signal.h>
 
+
 #include "../../lib/libc/stdlib/rand.c"
 #include "../../lib/libc/stdlib/srand.c"
-#include <nanvix/klib.h>
-
+#include <nanvix/clock.h>
 /**
  * @brief Schedules a process to execution.
  *
@@ -68,12 +68,8 @@ PUBLIC void resume(struct process *proc)
  */
 PUBLIC void yield(void)
 {
+    struct process *p;    /* Working process.     */
     struct process *next; /* Next process to run. */
-
-    /* Number of tickets until now. */
-    int ntickets = 0;
-
-    srand(123123);
 
     /* Re-schedule process for execution. */
     if (curr_proc->state == PROC_RUNNING)
@@ -82,48 +78,51 @@ PUBLIC void yield(void)
     /* Remember this process. */
     last_proc = curr_proc;
 
-    /* Check alarm.  */
-    for (next = FIRST_PROC; next <= LAST_PROC; next++)
+    /* Total number of tickets*/
+    int ntickets = 0;
+
+    /* Check alarm. */
+    for (p = IDLE; p <= LAST_PROC; p++)
     {
+
+        /*  Give tickets to ready process and count total number of tickets. */
+        if (p->state == PROC_READY) {
+            p->counter = (-1)*p->priority - p->nice;
+            ntickets += p->counter;
+        }
+
         /* Skip invalid processes. */
-        if (!IS_VALID(next))
+        if (!IS_VALID(p))
             continue;
 
         /* Alarm has expired. */
-        if ((next->alarm) && (next->alarm < ticks))
-            next->alarm = 0, sndsig(next, SIGALRM);
+        if ((p->alarm) && (p->alarm < ticks))
+            p->alarm = 0, sndsig(p, SIGALRM);
     }
 
-    /* Give and count total number of tickets */
-    for (next = FIRST_PROC; next <= LAST_PROC; next++)
-        /* Give tickets to ready process. */
-        if (next->state == PROC_READY) {
-            /* Number of tickets based on priority an nice level. */
-            next->counter = (2^(next->priority < 0 ? (-1)*(next->priority) + 40 : next->priority))-(2^next->nice);
-            /* Count total number of tickets */
-            ntickets += next->counter;
-        }
+    srand(ticks);
 
     /* Sort a ticket.*/
     int ticket = rand() % ntickets;
+    int ticket_count = 0;
 
     /* Choose a process to run next. */
-
-    int ticket_counter = 0;
-
-    for (next = IDLE; next <= LAST_PROC; next++)
+    next = IDLE;
+    for (p = FIRST_PROC; p <= LAST_PROC; p++)
     {
         /* Skip non-ready process. */
-        if (next->state != PROC_READY)
+        if (p->state != PROC_READY)
             continue;
 
-        /* limit of tickets to evaluated now */
-        ticket_counter += next->counter;
+        /* update tickets limit to evaluated now */
+        ticket_count += p->counter;
 
         /* Select the process that has The ticket. */
-        if(ticket < ticket_counter)
+        if (ticket < ticket_count)
+        {
+            next = p;
             break;
-
+        }
     }
 
     /* Switch to next process. */
